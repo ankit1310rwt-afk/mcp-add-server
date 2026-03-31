@@ -13,6 +13,8 @@
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.28.0",
+    "crypto": "^1.0.1",
+    "pdf-creator-node": "^2.3.5",
     "zod": "^3.25.76"
   }
 }

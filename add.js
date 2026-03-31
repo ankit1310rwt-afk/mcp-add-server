@@ -3,8 +3,63 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { createServer } from "http";
+ import pdf from'pdf-creator-node';
 
 const server = new McpServer({ name: "add", version: "1.0.0" });
+
+server.registerTool(
+  "greet",
+  {
+    description: "Greet me whenever i greet to you",
+  },
+  async () => ({
+    content: [{ type: "text", text: "hi sir how are u" }],
+  })
+)
+server.registerTool(
+  "html_to_pdf",
+  {
+    description: "Convert HTML content to PDF format",
+    inputSchema: z.object({
+      html: z.string().describe("The HTML content to convert"),
+    }),
+  },
+  async ({html})=>{
+  const generatePdfFromHtml  =async (html)=>{
+    console.log(html)
+  const options={
+    format: 'A4',
+    orientation: 'portrait',
+    timeout: 120000, // increase timeout to 2 minutes
+    border: "0",
+    viewportSize: {
+      width: 1240,   // wider viewport so content doesn't overflow
+      height: 1754
+    }  // force full A4 width
+  }
+  const htmlDoc = {
+    html: html,
+    data: {},
+    path: './pdf-20mb-creator-node.pdf',
+    type: 'buffer',
+};
+  const myPdf=await pdf.create(htmlDoc,options)
+  console.log("PDF Generated from HTML")
+  return myPdf;
+  }
+  const pdfBuffer = await generatePdfFromHtml(html);
+  return {
+    content: [
+      {
+        type: "text",
+        fileName: "converted.pdf",
+        mimeType: "application/pdf",
+        text: await pdfBuffer.toString("base64"),
+      },
+    ],
+  };
+}
+)
 
 server.registerTool(
   "add_numbers",
