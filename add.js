@@ -21,9 +21,11 @@ server.registerTool(
 );
 
 server.registerTool(
+  //name
   "multiple_numbers",
   {
     description: "Multiply two numbers",
+    // arguments
     inputSchema: z.object({
       a: z.number().describe("First number to multiply"),
       b: z.number().describe("Second number to multiply"),
@@ -40,8 +42,15 @@ const transport = new StreamableHTTPServerTransport({
 
 
 const httpServer = createServer((req, res) => {
-  if (req.url === "/mcp" && req.method === "POST") {
-    transport.handleRequest(req, res);
+  if (req.url === "/mcp") {
+    if (req.method === "POST") {
+      transport.handleRequest(req, res);
+    } else if (req.method === "GET") {
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ name: "add", version: "1.0.0" }));
+    } else {
+      res.writeHead(405).end("Method not allowed");
+    }
   } else {
     res.writeHead(404).end("Not found");
   }
