@@ -3,12 +3,14 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { createServer } from "http";
+import pdf from 'pdf-creator-node';
+import puppeteer from 'puppeteer';
 
-// ✅ Store sessions: sessionId → { server, transport }
+
 const sessions = new Map();
 
 function createMcpServer() {
-  // ✅ Create a FRESH McpServer instance per session
+ 
   const server = new McpServer({ name: "add", version: "1.0.0" });
 
   server.registerTool("greet", {
@@ -36,9 +38,89 @@ function createMcpServer() {
   }, async ({ a, b }) => ({
     content: [{ type: "text", text: `The product of ${a} and ${b} is ${a * b}.` }],
   }));
+//   server.registerTool(
+//   "html_to_pdf",
+//   {
+//     description: "Convert HTML content to PDF format",
+//     inputSchema: z.object({
+//       html: z.string().describe("The HTML content to convert"),
+//     }),
+//   },
+//   async ({html})=>{
+//   const generatePdfFromHtml  =async (html)=>{
+//     console.log(html)
+//   const options={
+//     format: 'A4',
+//     orientation: 'portrait',
+//     timeout: 120000, // increase timeout to 2 minutes
+//     border: "0",
+//     viewportSize: {
+//       width: 1240,   // wider viewport so content doesn't overflow
+//       height: 1754
+//     }  // force full A4 width
+//   }
+//   const htmlDoc = {
+//     html: html,
+//     data: {},
+//     path: './pdf-20mb-creator-node.pdf',
+//     type: 'buffer',
+// };
+//   const myPdf=await pdf.create(htmlDoc,options);
+//   console.log("PDF Generated from HTML")
+//   return myPdf;
+//   }
+//   const pdfBuffer = await generatePdfFromHtml(html);
+//   return {
+//     content: [
+//       {
+//         type: "text",
+//         fileName: "converted.pdf",
+//         mimeType: "application/pdf",
+//         text: await pdfBuffer.toString("base64"),
+//       },
+//     ],
+//   };
+// }
+// )
+server.registerTool(
+  "htmlToPDF",
+  {
+    "description": "Convert HTML content to PDF format",
+    "inputSchema": z.object({
+      html: z.string().describe("The HTML content to convert"),
+    }),
+  },
+ async({html})=>{
+  const generatePdfFromHtml = async (html) => {
+  const browser = await puppeteer.launch({ 
+    args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+  });
+  const page = await browser.newPage();
+  await page.setContent(html, { waitUntil: 'networkidle0' });
+  const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+  await browser.close();
+  return pdfBuffer;
+};
+  const buffer=await generatePdfFromHtml(html);
+  return {
+    content: [
+      {
+        type: "text",
+        fileName: "converted.pdf",
+        mimeType: "application/pdf",
+        text: buffer?.toString("base64")|| buffer,
+      },
+    ],
+  };
+}
+
+
+)
+
 
   return server;
 }
+
 
 const httpServer = createServer(async (req, res) => {
   if (req.url === "/mcp") {
