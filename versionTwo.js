@@ -38,84 +38,124 @@ function createMcpServer() {
   }, async ({ a, b }) => ({
     content: [{ type: "text", text: `The product of ${a} and ${b} is ${a * b}.` }],
   }));
-//   server.registerTool(
-//   "html_to_pdf",
+// server.registerTool(
+//   "htmlToPDF",
 //   {
-//     description: "Convert HTML content to PDF format",
-//     inputSchema: z.object({
+//     "description": "Convert HTML content to PDF format",
+//     "inputSchema": z.object({
 //       html: z.string().describe("The HTML content to convert"),
 //     }),
 //   },
-//   async ({html})=>{
-//   const generatePdfFromHtml  =async (html)=>{
-//     console.log(html)
-//   const options={
-//     format: 'A4',
-//     orientation: 'portrait',
-//     timeout: 120000, // increase timeout to 2 minutes
-//     border: "0",
-//     viewportSize: {
-//       width: 1240,   // wider viewport so content doesn't overflow
-//       height: 1754
-//     }  // force full A4 width
-//   }
-//   const htmlDoc = {
-//     html: html,
-//     data: {},
-//     path: './pdf-20mb-creator-node.pdf',
-//     type: 'buffer',
+//  async({html})=>{
+//   const generatePdfFromHtml = async (html) => {
+//   const browser = await puppeteer.launch({ 
+//     args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+//   });
+//   const page = await browser.newPage();
+//   await page.setContent(html, { waitUntil: 'networkidle0' });
+//   const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+//   await browser.close();
+//   return pdfBuffer;
 // };
-//   const myPdf=await pdf.create(htmlDoc,options);
-//   console.log("PDF Generated from HTML")
-//   return myPdf;
-//   }
-//   const pdfBuffer = await generatePdfFromHtml(html);
+//   const buffer=await generatePdfFromHtml(html);
 //   return {
 //     content: [
 //       {
 //         type: "text",
 //         fileName: "converted.pdf",
 //         mimeType: "application/pdf",
-//         text: await pdfBuffer.toString("base64"),
+//         text: buffer?.toString("base64")|| buffer,
 //       },
 //     ],
 //   };
 // }
+
+
 // )
 server.registerTool(
   "htmlToPDF",
   {
-    "description": "Convert HTML content to PDF format",
+    "description": "Convert HTML content to PDF format and return downloadable PDF",
     "inputSchema": z.object({
       html: z.string().describe("The HTML content to convert"),
+      filename: z.string().optional().describe("Output filename (default: converted.pdf)"),
+      format: z.enum(["A4", "Letter", "A3", "A5"]).optional().describe("Paper format"),
+      landscape: z.boolean().optional().describe("Landscape orientation (default: false)"),
     }),
   },
- async({html})=>{
-  const generatePdfFromHtml = async (html) => {
-  const browser = await puppeteer.launch({ 
-    args: ['--no-sandbox', '--disable-setuid-sandbox'] 
-  });
-  const page = await browser.newPage();
-  await page.setContent(html, { waitUntil: 'networkidle0' });
-  const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
-  await browser.close();
-  return pdfBuffer;
-};
-  const buffer=await generatePdfFromHtml(html);
-  return {
-    content: [
-      {
-        type: "text",
-        fileName: "converted.pdf",
-        mimeType: "application/pdf",
-        text: buffer?.toString("base64")|| buffer,
-      },
-    ],
-  };
-}
+  async ({ html, filename = "converted.pdf", format = "A4", landscape = false }) => {
+    try {
+      const generatePdfFromHtml = async (html) => {
+        const browser = await puppeteer.launch({
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+          headless: "new", // Use new headless mode
+        });
 
+        try {
+          const page = await browser.newPage();
+          
+          // Set viewport for consistent rendering
+          await page.setViewport({ width: 1280, height: 720 });
+          
+          // Set content with network idle wait
+          await page.setContent(html, { waitUntil: "networkidle0" });
+          
+          // Generate PDF with proper options
+          const pdfBuffer = await page.pdf({
+            format: format,
+            landscape: landscape,
+            printBackground: true,
+            margin: {
+              top: "20px",
+              bottom: "20px",
+              left: "20px",
+              right: "20px",
+            },
+          });
 
-)
+          await page.close();
+          return pdfBuffer;
+        } finally {
+          await browser.close();
+        }
+      };
+
+      // Generate PDF
+      const pdfBuffer = await generatePdfFromHtml(html);
+
+      if (!pdfBuffer || pdfBuffer.length === 0) {
+        throw new Error("PDF generation produced empty buffer");
+      }
+
+      // Return in proper MCP document format
+      return {
+        content: [
+          {
+            type: "document",
+            source: {
+              type: "base64",
+              media_type: "application/pdf",
+              data: pdfBuffer.toString("base64"),
+            },
+          },
+          {
+            type: "text",
+            text: ` PDF generated successfully: ${filename} (${(pdfBuffer.length / 1024).toFixed(2)} KB)`,
+          },
+        ],
+      };
+    } catch (error) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ Error generating PDF: ${error.message}`,
+          },
+        ],
+      };
+    }
+  }
+);
 
 
   return server;
